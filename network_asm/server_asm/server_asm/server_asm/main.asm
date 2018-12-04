@@ -9,10 +9,11 @@
 ; - C++ disassembly
 ; ***************************************************************************************
 
-.586
+.686P
 .model flat, stdcall
+.stack 4096
 
-INCLUDE Irvine32.lib	; for output
+INCLUDE Irvine32.inc	; for output
 
 INCLUDELIB WS2_32
 
@@ -20,24 +21,27 @@ EXTRN __imp_socket@12:PROC
 
 .data
 
-; CONSTANTS DEFINED IN CPP FILES
-; ---------------------------------------------------------------------------------------
+; ************************* CONSTANTS DEFINED IN CPP FILES ******************************
 
-; FROM ws2def.h
+; ------------------------------------ ws2def.h -----------------------------------------
 AF_INET					= 2		; internetwork: UDP, TCP, etc. - IPv4
 SOCK_STREAM				= 1		; stream socket (TCP)
-
-; FROM WinSock2.h
-INVALID_SOCKET			= -1	; the twos complement of 0 (~0), 
-								; used because SOCKET is unsigned
 
 ; INADDR_ANY in ws2def.h actually is 64 0s
 INADDR_ANY				= 7f000001h 	; loopback address [127.0.0.1]
 
+; ----------------------------------- WinSock2.h ----------------------------------------
+INVALID_SOCKET			= -1	; the twos complement of 0 (~0), 
+								; used because SOCKET is unsigned
 ; ---------------------------------------------------------------------------------------
+
+hello BYTE "Hello World from Assembly",0
 
 .code 
 main PROC
-
+	mov edx, offset hello
+	call WriteString
+	
+	exit
 main ENDP
 end
