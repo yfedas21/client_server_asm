@@ -33,8 +33,18 @@ EXTRN	getnameinfo@28:PROC
 EXTRN	inet_ntop@16:PROC
 EXTRN	memset:PROC
 
-.data
+; create a WSADATA struct, from WinSock2.h
+WSADATA STRUCT 
+	wVersion		WORD 514d 
+	wHighVersion	WORD 514d
+	szDescription	BYTE 257 DUP(?)
+	szSystemStatus	BYTE 129 DUP(?)
+	iMaxSockets		WORD 0
+	iMaxUdpDg		WORD 0
+	;lpVendorInfo	BYTE PTR ?
+WSADATA ENDS
 
+.data
 ; ************************* CONSTANTS DEFINED IN CPP FILES ******************************
 
 ; ------------------------------------ ws2def.h -----------------------------------------
@@ -56,6 +66,13 @@ FAIL_SOCK				BYTE "Can't create a socket! Quitting... ",0
 FAIL_RECV				BYTE "Error in recv(). Quitting... ",0
 CONN_PORT				BYTE " connected on port ",0
 HOST_GONE				BYTE "Client disconnected... ",0
+VERSION					WORD 514d
+
+; --------------------------------- my variables ----------------------------------------
+wsData		WSADATA <>		; create a new wsData struct w/ default values
+wsOk		DWORD ?			; 0 is winsock is initialized successfully
+listening	DWORD ?			; pointer that holds the listening socket 
+
 ; ***************************************************************************************
 
 ; $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
@@ -83,10 +100,14 @@ HOST_GONE				BYTE "Client disconnected... ",0
 
 .code 
 main PROC
-	push	0
-	push	1
-	push	2
-	call	DWORD PTR socket@12
+
+	; Initialize winsock (call WSAStartup)
+	lea eax, DWORD PTR wsData
+	push eax
+	movzx ecx, WORD PTR VERSION
+	push ecx
+	call WSAStartup@8 ; took out "DWORD PTR"
+	mov DWORD PTR wsOk, eax
 
 	exit
 main ENDP
