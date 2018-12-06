@@ -77,28 +77,28 @@ listening	DWORD ?			; socket "handle" that identifies the created socket
 
 ; ***************************************************************************************
 
-; $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-;
-;									-Program Logic-
-;
-;		1. Initialize winsock (call WSAStartup)
-;		2. Create a socket (call socket)
-;		3. Bind the ip address and port to a socket (call bind)
-;			a. Use localhost (127.0.0.1:5400)
-;		4. Tell winsock the socket is a listening socket (call listen)
-;		5. Wait for a client connection (call accept)
-;		6. After client connects, get client info
-;			a. client hostname
-;			b. service name
-;			c. display host info to console
-;		7. Close the listening socket (call closesocket)
-;		8. While-loop to accept data from client (as long as they send)
-;		9. Receive data from client (call recv)
-;		10. If the client sends any data, echo it back to them
-;		11. After the client disconnects, close the client socket (call closesocket)
-;		12.	Clean up winsock
-;
-; $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+; $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ ;
+;																						;
+;									-Program Logic-										;
+;																						;
+;		1. Initialize winsock (call WSAStartup)											;
+;		2. Create a socket (call socket)												;
+;		3. Bind the ip address and port to a socket (call bind)							;
+;			a. Use localhost (127.0.0.1:5400)											;
+;		4. Tell winsock the socket is a listening socket (call listen)					;
+;		5. Wait for a client connection (call accept)									;
+;		6. After client connects, get client info										;
+;			a. client hostname															;
+;			b. service name																;
+;			c. display host info to console												;	
+;		7. Close the listening socket (call closesocket)								;
+;		8. While-loop to accept data from client (as long as they send)					;
+;		9. Receive data from client (call recv)											;
+;		10. If the client sends any data, echo it back to them							;
+;		11. After the client disconnects, close the client socket (call closesocket)	;
+;		12.	Clean up winsock															;
+;																						;
+; $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$ ;
 
 .code 
 main PROC
@@ -115,6 +115,7 @@ main PROC
 	.IF wsOk != 0		
 		mov edx, offset FAIL_WSAS
 		call WriteString
+		call WSACleanup@0	; "terminates us of the Winsock 2 DLL" -MS docs
 		jmp end_it
 	.ENDIF
 
@@ -126,6 +127,16 @@ main PROC
 	push edx
 	call socket@12
 	mov listening, eax
+
+	; ------- Check if socket() returned a valid socket -------
+	.IF listening == INVALID_SOCKET
+		mov edx, offset FAIL_SOCK
+		call WriteString
+		call WSACleanup@0	; terminates use of ws2_32.dll on all threads
+		jmp end_it
+	.ENDIF
+
+
 
 	end_it:
 		exit
