@@ -32,6 +32,7 @@ EXTRN	WSACleanup@0:PROC
 EXTRN	getnameinfo@28:PROC
 EXTRN	inet_ntop@16:PROC
 EXTRN	memset:PROC
+EXTRN	WriteString@0:PROC
 
 ; create a WSADATA struct, from WinSock2.h
 WSADATA STRUCT 
@@ -108,7 +109,16 @@ main PROC
 	push ecx
 	call WSAStartup@8 ; took out "DWORD PTR"
 	mov DWORD PTR wsOk, eax
+	
+	; Check if winsock was initialized successfully 
+	.IF wsOk != 0		
+		push edx
+		mov edx, offset FAIL_WSAS
+		call WriteString
+		jmp end_it
+	.ENDIF
 
-	exit
+	end_it:
+		exit
 main ENDP
 end
