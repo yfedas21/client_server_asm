@@ -34,6 +34,7 @@ EXTRN	getnameinfo@28:PROC
 EXTRN	inet_ntop@16:PROC
 EXTRN	memset:PROC
 EXTRN	WriteString@0:PROC
+EXTRN	WriteInt@0:PROC
 
 ; create a WSADATA struct, from WinSock2.h
 WSADATA STRUCT 
@@ -46,13 +47,20 @@ WSADATA STRUCT
 	;lpVendorInfo	BYTE PTR ?
 WSADATA ENDS
 
+sockaddr_in STRUCT
+	sin_family		WORD ?
+	sin_port		WORD ?
+	sin_addr		DWORD ?
+	sin_zero		BYTE 8 DUP(?)
+sockaddr_in ENDS
+
 .data
 ; ************************* CONSTANTS DEFINED IN CPP FILES ******************************
 
 ; ------------------------------------ ws2def.h -----------------------------------------
 AF_INET					= 2		; internetwork: UDP, TCP, etc. - IPv4
 SOCK_STREAM				= 1		; stream socket (TCP)
-INADDR_ANY				= 7f000001h 	; loopback address [127.0.0.1], MODIFIED
+INADDR_ANY				= 0h	; defined as ULONG, I'll use it as a DWORD
 NI_MAXHOST				= 1025	; max size of FQDN
 NI_MAXSERV				= 32	; max size of a service name
 
@@ -72,8 +80,11 @@ VERSION					WORD 514d
 
 ; --------------------------------- my variables ----------------------------------------
 wsData		WSADATA <>		; create a new wsData struct w/ default values
+hint		sockaddr_in <>	; address structure
 wsOk		DWORD ?			; 0 is winsock is initialized successfully
 listening	DWORD ?			; socket "handle" that identifies the created socket
+ipAddress	DWORD 7F000001h	; the ip address I will be using (loopback)
+servPort	WORD 0F0D2h		; port 54000 IN BIG ENDIAN!!!
 
 ; ***************************************************************************************
 
@@ -115,7 +126,6 @@ main PROC
 	.IF wsOk != 0		
 		mov edx, offset FAIL_WSAS
 		call WriteString
-		call WSACleanup@0	; "terminates us of the Winsock 2 DLL" -MS docs
 		jmp end_it
 	.ENDIF
 
@@ -136,7 +146,13 @@ main PROC
 		jmp end_it
 	.ENDIF
 
-
+	; ------- Create the address structure to bind -------
+	mov dx, AF_INET
+	mov hint.sin_family, dx
+	mov dx, servPort
+	mov hint.sin_port, dx
+	mov edx, INADDR_ANY
+	mov hint.sin_addr, edx
 
 	end_it:
 		exit
