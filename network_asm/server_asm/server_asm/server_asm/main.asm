@@ -54,6 +54,22 @@ sockaddr_in STRUCT
 	sin_zero		BYTE 8 DUP(?)
 sockaddr_in ENDS
 
+sockaddr STRUCT
+	sa_family		WORD ?
+	sa_data			BYTE 14 DUP(?)
+sockaddr ENDS
+
+addrinfo STRUCT
+	ai_flags		DWORD ?
+	ai_family		DWORD ?
+	ai_socktype		DWORD ?
+	ai_protocol		DWORD ?
+	size_t			DWORD ?
+	ai_canonname	DWORD ?
+	ai_addr			DWORD ?
+	ai_next			DWORD ?
+addrinfo ENDS
+
 .data
 ; ************************* CONSTANTS DEFINED IN CPP FILES ******************************
 
@@ -85,6 +101,8 @@ wsOk		DWORD ?			; 0 is winsock is initialized successfully
 listening	DWORD ?			; socket "handle" that identifies the created socket
 ipAddress	DWORD 7F000001h	; the ip address I will be using (loopback)
 servPort	WORD 0F0D2h		; port 54000 IN BIG ENDIAN!!!
+hints		addrinfo <>		; 
+result		addrinfo <> 
 
 ; ***************************************************************************************
 
@@ -153,6 +171,14 @@ main PROC
 	mov hint.sin_port, dx
 	mov edx, INADDR_ANY
 	mov hint.sin_addr, edx
+
+	; ------- Bind the socket -------
+	push 16			; sizeof(hint)
+	lea eax, DWORD PTR hint
+	push eax
+	lea eax, DWORD PTR listening
+	push eax
+	call bind@12		; void function, nothing returned
 
 	end_it:
 		exit
