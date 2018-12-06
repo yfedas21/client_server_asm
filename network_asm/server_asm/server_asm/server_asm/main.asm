@@ -9,30 +9,6 @@
 ; - C++ disassembly
 ; ***************************************************************************************
 
-
-; $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-;
-;									-Program Logic-
-;
-;		1. Initialize winsock (call WSAStartup)
-;		2. Create a socket (call socket)
-;		3. Bind the ip address and port to a socket (call bind)
-;			a. Use localhost (127.0.0.1:5400)
-;		4. Tell winsock the socket is a listening socket (call listen)
-;		5. Wait for a client connection (call accept)
-;		6. After client connects, get client info
-;			a. client hostname
-;			b. service name
-;			c. display host info to console
-;		7. Close the listening socket (call closesocket)
-;		8. While-loop to accept data from client (as long as they send)
-;		9. Receive data from client (call recv)
-;		10. If the client sends any data, echo it back to them
-;		11. After the client disconnects, close the client socket (call closesocket)
-;		12.	Clean up winsock
-;
-; $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
-
 .686P
 .model flat			
 .stack 4096
@@ -75,9 +51,35 @@ SOMAXCONN				= 7fffffffh		; maxinmum # of pending connections in queue
 
 ; --------------------------------- my constants ----------------------------------------
 BUF_SIZE				= 4096	; the size of the buffer client sends data into
+FAIL_WSAS				BYTE "Can't initialize winsock! Quitting... ",0
+FAIL_SOCK				BYTE "Can't create a socket! Quitting... ",0
+FAIL_RECV				BYTE "Error in recv(). Quitting... ",0
+CONN_PORT				BYTE " connected on port ",0
+HOST_GONE				BYTE "Client disconnected... ",0
 ; ***************************************************************************************
 
-errStr BYTE "Hello World from Assembly",0
+; $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
+;
+;									-Program Logic-
+;
+;		1. Initialize winsock (call WSAStartup)
+;		2. Create a socket (call socket)
+;		3. Bind the ip address and port to a socket (call bind)
+;			a. Use localhost (127.0.0.1:5400)
+;		4. Tell winsock the socket is a listening socket (call listen)
+;		5. Wait for a client connection (call accept)
+;		6. After client connects, get client info
+;			a. client hostname
+;			b. service name
+;			c. display host info to console
+;		7. Close the listening socket (call closesocket)
+;		8. While-loop to accept data from client (as long as they send)
+;		9. Receive data from client (call recv)
+;		10. If the client sends any data, echo it back to them
+;		11. After the client disconnects, close the client socket (call closesocket)
+;		12.	Clean up winsock
+;
+; $$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$$
 
 .code 
 main PROC
