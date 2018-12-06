@@ -1,4 +1,5 @@
 ; Client / Server implementation in Assembly
+;
 ; Server component
 ;
 ; ***************************************************************************************
@@ -72,7 +73,7 @@ VERSION					WORD 514d
 ; --------------------------------- my variables ----------------------------------------
 wsData		WSADATA <>		; create a new wsData struct w/ default values
 wsOk		DWORD ?			; 0 is winsock is initialized successfully
-listening	DWORD ?			; pointer that holds the listening socket 
+listening	DWORD ?			; socket "handle" that identifies the created socket
 
 ; ***************************************************************************************
 
@@ -102,7 +103,7 @@ listening	DWORD ?			; pointer that holds the listening socket
 .code 
 main PROC
 
-	; Initialize winsock (call WSAStartup)
+	; ------- Initialize winsock (call WSAStartup) -------
 	lea eax, DWORD PTR wsData
 	push eax
 	movzx ecx, WORD PTR VERSION
@@ -110,13 +111,21 @@ main PROC
 	call WSAStartup@8 ; took out "DWORD PTR"
 	mov DWORD PTR wsOk, eax
 	
-	; Check if winsock was initialized successfully 
+	; ------- Check if winsock was initialized successfully -------
 	.IF wsOk != 0		
-		push edx
 		mov edx, offset FAIL_WSAS
 		call WriteString
 		jmp end_it
 	.ENDIF
+
+	; ------- Create a listening socket -------
+	push 0
+	mov edx, SOCK_STREAM		; specify the TCP protocol
+	push edx
+	mov edx, AF_INET			; specify the IP family (v4)
+	push edx
+	call socket@12
+	mov listening, eax
 
 	end_it:
 		exit
