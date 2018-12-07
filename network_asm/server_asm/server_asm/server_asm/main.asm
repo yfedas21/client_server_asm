@@ -93,6 +93,7 @@ SOMAXCONN				= 7fffffffh		; maxinmum # of pending connections in queue
 NULL					= 0		; as defined in vcruntime.h
 
 ; --------------------------------- my constants ----------------------------------------
+WELCOME					BYTE "Welcome. Connect on localhost:27015. ",0
 FAIL_WSAS				BYTE "Can't initialize winsock! Quitting... ",0
 FAIL_RESO				BYTE "Can't resolve server address and port! Quitting... ",0
 FAIL_SOCK				BYTE "Can't create socket! ERROR: ",0
@@ -118,8 +119,8 @@ ListenSocket	DWORD -1		; listen on this socket
 ClientSocket	DWORD -1		; respond to clients on this socket (per client basis)
 hints			addrinfo <>		
 result			DWORD 0
-iResult			SDWORD ?
-iSendResult		SDWORD ?			; return value from send()
+iResult			DWORD ?
+iSendResult		DWORD ?			; return value from send()
 recvbuf			BYTE 512 DUP(0)	; buffer client sends messages into
 
 ; ***************************************************************************************
@@ -149,6 +150,10 @@ recvbuf			BYTE 512 DUP(0)	; buffer client sends messages into
 
 .code 
 main PROC
+	; ------- Display Welcome -------
+	mov edx, OFFSET WELCOME
+	call WriteString
+	call crlf
 
 	; ------- Initialize winsock (call WSAStartup) -------
 	lea eax, DWORD PTR wsData
