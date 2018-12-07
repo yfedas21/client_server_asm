@@ -209,11 +209,11 @@ main PROC
 	.IF ListenSocket == INVALID_SOCKET
 		mov edx, OFFSET FAIL_SOCK
 		call WriteString
-		call DWORD PTR WSAGetLastError@0
+		call WSAGetLastError@0
 		mov eax, DWORD PTR result	
 		push eax
-		call DWORD PTR freeaddrinfo@4			; release reserved addr / port
-		call DWORD PTR WSACleanup@0			; clean up instance
+		call freeaddrinfo@4			; release reserved addr / port
+		call WSACleanup@0			; clean up instance
 		jmp end_it
 	.ENDIF
 
@@ -233,14 +233,14 @@ main PROC
 	.IF iResult == SOCKET_ERROR
 		mov edx, OFFSET FAIL_BIND
 		call WriteString
-		call DWORD PTR WSAGetLastError@0
+		call WSAGetLastError@0
 		mov eax, DWORD PTR result
 		push eax
-		call DWORD PTR freeaddrinfo@4			
+		call freeaddrinfo@4			
 		mov eax, DWORD PTR ListenSocket
 		push eax
-		call DWORD PTR closesocket@4
-		call DWORD PTR WSACleanup@0
+		call closesocket@4
+		call WSACleanup@0
 		jmp end_it
 	.ENDIF
 
@@ -261,11 +261,11 @@ main PROC
 	.IF iResult == SOCKET_ERROR
 		mov edx, OFFSET FAIL_LIST
 		call WriteString
-		call DWORD PTR WSAGetLastError@0
+		call WSAGetLastError@0
 		mov eax, DWORD PTR ListenSocket
 		push eax
-		call DWORD PTR closesocket@4
-		call DWORD PTR WSACleanup@0		
+		call closesocket@4
+		call WSACleanup@0		
 		jmp end_it
 	.ENDIF
 
@@ -281,18 +281,18 @@ main PROC
 	.IF ClientSocket == INVALID_SOCKET
 		mov edx, OFFSET FAIL_ACCP
 		call WriteString
-		call DWORD PTR WSAGetLastError@0
+		call WSAGetLastError@0
 		mov eax, DWORD PTR ListenSocket
 		push eax
-		call DWORD PTR closesocket@4
-		call DWORD PTR WSACleanup@0
+		call closesocket@4
+		call WSACleanup@0
 		jmp end_it
 	.ENDIF
 
 	; ------- Close listen socket (implies only one connection allowed) -------
 	mov eax, DWORD PTR ListenSocket
 	push eax
-	call DWORD PTR closesocket@4
+	call closesocket@4
 
 	; ------- Receive until client disconnects -------
 	.REPEAT
@@ -304,7 +304,7 @@ main PROC
 		push ecx
 		mov edx, DWORD PTR ClientSocket
 		push edx
-		call DWORD PTR recv@16
+		call recv@16
 		mov iResult, eax
 
 		.IF iResult > 0
@@ -322,23 +322,23 @@ main PROC
 			push ecx
 			mov edx, DWORD PTR ClientSocket
 			push edx
-			call DWORD PTR send@16
-			mov DWORD PTR iSendResult, eax
+			call send@16
+			mov iSendResult, eax
 
 			.IF iSendResult == SOCKET_ERROR
 				mov edx, OFFSET FAIL_SEND
 				call WriteString
-				call DWORD PTR WSAGetLastError@0
+				call WSAGetLastError@0
 				mov eax, DWORD PTR ClientSocket
 				push eax
-				call DWORD PTR closesocket@4
-				call DWORD PTR WSACleanup@0
+				call closesocket@4
+				call WSACleanup@0
 				jmp end_it
 			.ENDIF
 
 			mov edx, OFFSET SENT_BYTE
 			call WriteString
-			mov eax, DWORD PTR iSendResult
+			mov eax, iSendResult
 			call WriteInt
 			call crlf
 
@@ -350,11 +350,11 @@ main PROC
 		.ELSE
 			mov edx, OFFSET FAIL_RECV
 			call WriteString
-			call DWORD PTR WSAGetLastError@0
+			call WSAGetLastError@0
 			mov eax, DWORD PTR ClientSocket
 			push eax
-			call DWORD PTR closesocket@4
-			call DWORD PTR WSACleanup@0
+			call closesocket@4
+			call WSACleanup@0
 			jmp end_it
 
 		.ENDIF
@@ -365,26 +365,26 @@ main PROC
 	push eax
 	mov ebx, DWORD PTR ClientSocket
 	push ebx
-	call DWORD PTR shutdown@8
+	call shutdown@8
 	mov iResult, eax
 
 	; ------- Check if clean shutdown -------
 	.IF iResult == SOCKET_ERROR
 		mov edx, OFFSET FAIL_SHUT
 		call WriteString
-		call DWORD PTR WSAGetLastError@0
+		call WSAGetLastError@0
 		mov eax, DWORD PTR ClientSocket
 		push eax
-		call DWORD PTR closesocket@4
-		call DWORD PTR WSACleanup@0
+		call closesocket@4
+		call WSACleanup@0
 		jmp end_it
 	.ENDIF
 
 	; ------- Clean up -------
 	mov eax, DWORD PTR ClientSocket
 	push eax
-	call DWORD PTR closesocket@4
-	call DWORD PTR WSACleanup@0
+	call closesocket@4
+	call WSACleanup@0
 
 	end_it:
 		exit
