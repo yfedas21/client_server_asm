@@ -96,6 +96,8 @@ FAIL_WSAS				BYTE "Can't initialize winsock! Quitting... ",0
 FAIL_RESO				BYTE "Can't resolve server address and port! Quitting... ",0
 FAIL_SOCK				BYTE "Can't create socket! Quitting... ",0
 FAIL_BIND				BYTE "Can't bind the socket! Quitting... ",0
+FAIL_LIST				BYTE "Can't initialize socket for listening! Quitting... ",0
+FAIL_ACCP				BYTE "Can't accept client connection! Quitting...",0
 FAIL_RECV				BYTE "Error in recv(). Quitting... ",0
 CONN_PORT				BYTE " connected on port ",0
 HOST_GONE				BYTE "Client disconnected... ",0
@@ -219,12 +221,54 @@ main PROC
 		mov edx, OFFSET FAIL_BIND
 		call WriteString
 		push DWORD PTR result		
-		call freeaddrinfo@4			; release reserved addr / port
+		call freeaddrinfo@4			
 		push ListenSocket
-		call closesocket@4			; close the Listen socket
-		call WSACleanup@0			; clean up instance
+		call closesocket@4			
 		jmp end_it
 	.ENDIF
+
+	; ------- Free dynamically-alloc addr info ------
+	push DWORD PTR result		
+	call freeaddrinfo@4	
+
+	; ------- Specify socket for listening -------
+	push SOMAXCONN
+	push ListenSocket
+	call listen@8
+	mov iResult, eax
+
+	; ------- Check if designated properly -------
+	.IF iResult == SOCKET_ERROR
+		mov edx, OFFSET FAIL_LIST
+		call WriteString
+		push ListenSocket
+		call closesocket@4
+		call WSACleanup@0		
+		jmp end_it
+	.ENDIF
+
+	; ------- Accept a client socket -------
+	push NULL
+	push NULL
+	push ListenSocket
+	call accept@12
+	mov ClientSocket, eax
+
+	; ------- Check if client accepted -------
+	.IF ClientSocket == INVALID_SOCKET
+		mov edx, OFFSET FAIL_ACCP
+		call WriteString
+		push ListenSocket
+		call closesocket@4
+		call WSAStartup@0
+		jmp end_it
+	.ENDIF
+
+	; ------- Close listen socket (implies only one connection allowed) -------
+	push ListenSocket
+	call closesocket@4
+
+
 
 	end_it:
 		exit
