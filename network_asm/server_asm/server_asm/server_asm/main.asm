@@ -38,6 +38,7 @@ EXTRN	WriteString@0:PROC
 EXTRN	WriteInt@0:PROC
 EXTRN	getaddrinfo@16:PROC
 EXTRN	freeaddrinfo@4:PROC
+EXTRN	shutdown@8:PROC
 
 ; create a WSADATA struct, from WinSock2.h
 WSADATA STRUCT 
@@ -95,20 +96,22 @@ NULL					= 0		; as defined in vcruntime.h
 BUF_SIZE				= 4096	; the size of the buffer client sends data into
 FAIL_WSAS				BYTE "Can't initialize winsock! Quitting... ",0
 FAIL_RESO				BYTE "Can't resolve server address and port! Quitting... ",0
-FAIL_SOCK				BYTE "Can't create socket! ERROR ",0
-FAIL_BIND				BYTE "Can't bind the socket! ERROR ",0
-FAIL_LIST				BYTE "Can't initialize socket for listening! ERROR ",0
-FAIL_ACCP				BYTE "Can't accept client connection! ERROR ",0
-FAIL_SEND				BYTE "Can't send back to client! ERROR ",0
-FAIL_RECV				BYTE "Can't recv(), ERROR ",0
+FAIL_SOCK				BYTE "Can't create socket! ERROR: ",0
+FAIL_BIND				BYTE "Can't bind the socket! ERROR: ",0
+FAIL_LIST				BYTE "Can't initialize socket for listening! ERROR: ",0
+FAIL_ACCP				BYTE "Can't accept client connection! ERROR: ",0
+FAIL_SEND				BYTE "Can't send back to client! ERROR: ",0
+FAIL_RECV				BYTE "Can't recv(), ERROR: ",0
 RECV_BYTE				BYTE "Bytes received: ",0
 SENT_BYTE				BYTE "Bytes sent: ",0
 CONN_CLSE				BYTE "Connection closing... ",0
 CONN_PORT				BYTE " connected on port ",0
 HOST_GONE				BYTE "Client disconnected... ",0
+FAIL_SHUT				BYTE "Shutdown failed with error: ",0
 VERSION					WORD 514d
 DEFAULT_PORT			BYTE "54000",0
 DEFAULT_BUFLEN			DWORD 512d
+SD_SEND					DWORD 1d
 
 ; --------------------------------- my variables ----------------------------------------
 wsData			WSADATA <>		; create a new wsData struct w/ default values
@@ -336,6 +339,28 @@ main PROC
 
 		.ENDIF
 	.UNTIL iResult <= 0
+
+	; ------- Shut down the connection -------
+	push SD_SEND
+	push ClientSocket
+	call shutdown@8
+	mov iResult, eax
+
+	; ------- Check if clean shutdown -------
+	.IF iResult == SOCKET_ERROR
+		mov edx, OFFSET FAIL_SHUT
+		call WriteString
+		call WSAGetLastError@0
+		push ClientSocket
+		call closesocket@4
+		call WSACleanup@0
+		jmp end_it
+	.ENDIF
+
+	; ------- Clean up -------
+	push ClientSocket
+	call closesocket@4
+	call WSACleanup@0
 
 	end_it:
 		exit
