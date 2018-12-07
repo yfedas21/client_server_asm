@@ -100,15 +100,15 @@ VERSION					WORD 514d
 DEFAULT_PORT			BYTE "54000",0
 
 ; --------------------------------- my variables ----------------------------------------
-wsData		WSADATA <>		; create a new wsData struct w/ default values
-hint		sockaddr_in <>	; address structure
-wsOk		DWORD ?			; 0 is winsock is initialized successfully
-listening	DWORD ?			; socket "handle" that identifies the created socket
-ipAddress	DWORD 7F000001h	; the ip address I will be using (loopback)
-servPort	WORD 0F0D2h		; port 54000 IN BIG ENDIAN!!!
-hints		addrinfo <>		
-result		addrinfo <> 
-iResult		DWORD ?
+wsData			WSADATA <>		; create a new wsData struct w/ default values
+wsOk			DWORD ?			; 0 is winsock is initialized successfully
+ListenSocket	DWORD -1		; listen on this socket
+ClientSocket	DWORD -1		; respond to clients on this socket (per client basis)
+ipAddress		DWORD 7F000001h	; the ip address I will be using (loopback)
+servPort		WORD 0F0D2h		; port 54000 IN BIG ENDIAN!!!
+hints			addrinfo <>		
+result			addrinfo <> 
+iResult			DWORD ?
 
 ; ***************************************************************************************
 
@@ -148,7 +148,7 @@ main PROC
 	
 	; ------- Check if winsock was initialized successfully -------
 	.IF wsOk != 0		
-		mov edx, offset FAIL_WSAS
+		mov edx, OFFSET FAIL_WSAS
 		call WriteString
 		jmp end_it
 	.ENDIF
@@ -166,22 +166,29 @@ main PROC
 	push edx
 	lea edx, DWORD PTR hints
 	push edx
-	lea edx, BYTE PTR DEFAULT_PORT
-	push edx
-	mov edx, NULL		; make sure 4 bytes of 0
-	push edx
+	push OFFSET DEFAULT_PORT
+	push 0
 	call getaddrinfo@16
 	mov iResult, eax
 
 	; ------- Check if addr / port resolved ------
 	.IF iResult != 0
-		mov edx, offset FAIL_RESO
+		mov edx, OFFSET FAIL_RESO
 		call WriteString
 		call WSACleanup@0
 		jmp end_it
 	.ENDIF
 
-
+	; ------- Create a listen socket -------
+	mov eax, DWORD PTR result		; eax contains the location, 
+	mov edx, [eax+12]				; i.e. result->ai_family, etc
+	push edx
+	mov edx, [eax+8]
+	push edx
+	mov edx, [eax+4]
+	push edx
+	call socket@12
+	mov ListenSocket, eax		; holds the socket (an identifier)
 
 	end_it:
 		exit
