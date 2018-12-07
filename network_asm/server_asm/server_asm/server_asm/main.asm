@@ -97,7 +97,7 @@ FAIL_RECV				BYTE "Error in recv(). Quitting... ",0
 CONN_PORT				BYTE " connected on port ",0
 HOST_GONE				BYTE "Client disconnected... ",0
 VERSION					WORD 514d
-DEFAULT_PORT			BYTE "54",0
+DEFAULT_PORT			BYTE "54000",0
 
 ; --------------------------------- my variables ----------------------------------------
 wsData		WSADATA <>		; create a new wsData struct w/ default values
@@ -165,7 +165,8 @@ main PROC
 	lea edx, DWORD PTR result
 	push edx
 	lea edx, DWORD PTR hints
-	movzx edx, DEFAULT_PORT
+	push edx
+	lea edx, BYTE PTR DEFAULT_PORT
 	push edx
 	mov edx, NULL		; make sure 4 bytes of 0
 	push edx
@@ -177,6 +178,7 @@ main PROC
 		mov edx, offset FAIL_RESO
 		call WriteString
 		call WSACleanup@0
+		jmp end_it
 	.ENDIF
 
 
