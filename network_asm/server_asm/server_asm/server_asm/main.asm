@@ -30,6 +30,7 @@ EXTRN	send@16:PROC
 EXTRN	socket@12:PROC
 EXTRN	WSAStartup@8:PROC
 EXTRN	WSACleanup@0:PROC
+EXTRN	WSAGetLastError@0:PROC
 EXTRN	getnameinfo@28:PROC
 EXTRN	inet_ntop@16:PROC
 EXTRN	memset:PROC
@@ -94,15 +95,20 @@ NULL					= 0		; as defined in vcruntime.h
 BUF_SIZE				= 4096	; the size of the buffer client sends data into
 FAIL_WSAS				BYTE "Can't initialize winsock! Quitting... ",0
 FAIL_RESO				BYTE "Can't resolve server address and port! Quitting... ",0
-FAIL_SOCK				BYTE "Can't create socket! Quitting... ",0
-FAIL_BIND				BYTE "Can't bind the socket! Quitting... ",0
-FAIL_LIST				BYTE "Can't initialize socket for listening! Quitting... ",0
-FAIL_ACCP				BYTE "Can't accept client connection! Quitting...",0
-FAIL_RECV				BYTE "Error in recv(). Quitting... ",0
+FAIL_SOCK				BYTE "Can't create socket! ERROR ",0
+FAIL_BIND				BYTE "Can't bind the socket! ERROR ",0
+FAIL_LIST				BYTE "Can't initialize socket for listening! ERROR ",0
+FAIL_ACCP				BYTE "Can't accept client connection! ERROR ",0
+FAIL_SEND				BYTE "Can't send back to client! ERROR ",0
+FAIL_RECV				BYTE "Can't recv(), ERROR ",0
+RECV_BYTE				BYTE "Bytes received: ",0
+SENT_BYTE				BYTE "Bytes sent: ",0
+CONN_CLSE				BYTE "Connection closing... ",0
 CONN_PORT				BYTE " connected on port ",0
 HOST_GONE				BYTE "Client disconnected... ",0
 VERSION					WORD 514d
 DEFAULT_PORT			BYTE "54000",0
+DEFAULT_BUFLEN			DWORD 512d
 
 ; --------------------------------- my variables ----------------------------------------
 wsData			WSADATA <>		; create a new wsData struct w/ default values
@@ -114,6 +120,8 @@ servPort		WORD 0F0D2h		; port 54000 IN BIG ENDIAN!!!
 hints			addrinfo <>		
 result			addrinfo <> 
 iResult			DWORD ?
+iSendResult		DWORD ?			; return value from send()
+recvbuf			BYTE 512 DUP(?)	; buffer client sends messages into
 
 ; ***************************************************************************************
 
@@ -199,6 +207,7 @@ main PROC
 	.IF ListenSocket == INVALID_SOCKET
 		mov edx, OFFSET FAIL_SOCK
 		call WriteString
+		call WSAGetLastError@0
 		push DWORD PTR result		
 		call freeaddrinfo@4			; release reserved addr / port
 		call WSACleanup@0			; clean up instance
@@ -220,6 +229,7 @@ main PROC
 	.IF iResult == SOCKET_ERROR
 		mov edx, OFFSET FAIL_BIND
 		call WriteString
+		call WSAGetLastError@0
 		push DWORD PTR result		
 		call freeaddrinfo@4			
 		push ListenSocket
@@ -241,6 +251,7 @@ main PROC
 	.IF iResult == SOCKET_ERROR
 		mov edx, OFFSET FAIL_LIST
 		call WriteString
+		call WSAGetLastError@0
 		push ListenSocket
 		call closesocket@4
 		call WSACleanup@0		
@@ -258,9 +269,10 @@ main PROC
 	.IF ClientSocket == INVALID_SOCKET
 		mov edx, OFFSET FAIL_ACCP
 		call WriteString
+		call WSAGetLastError@0
 		push ListenSocket
 		call closesocket@4
-		call WSAStartup@0
+		call WSACleanup@0
 		jmp end_it
 	.ENDIF
 
@@ -268,7 +280,62 @@ main PROC
 	push ListenSocket
 	call closesocket@4
 
+	; ------- Receive until client disconnects -------
+	.REPEAT
+		; ---- receive data from client ----
+		push 0
+		push DEFAULT_BUFLEN
+		push DWORD PTR recvbuf
+		push ClientSocket
+		call recv@16
 
+		.IF iResult > 0
+			mov edx, OFFSET RECV_BYTE
+			call WriteString
+			mov eax, iResult
+			call WriteInt
+			call crlf
+
+			; -- Echo the buffer back to the sender --
+			push 0
+			push iResult
+			push DWORD PTR recvbuf
+			push ClientSocket
+			call send@16
+			mov iSendResult, eax
+
+			.IF iSendResult == SOCKET_ERROR
+				mov edx, OFFSET FAIL_SEND
+				call WriteString
+				call WSAGetLastError@0
+				push ClientSocket
+				call closesocket@4
+				call WSACleanup@0
+				jmp end_it
+			.ENDIF
+
+			mov edx, OFFSET SENT_BYTE
+			call WriteString
+			mov eax, iSendResult
+			call WriteInt
+			call crlf
+
+		.ELSEIF iResult == 0
+			mov edx, OFFSET CONN_CLSE
+			call WriteString
+			jmp end_it
+
+		.ELSE
+			mov edx, OFFSET FAIL_RECV
+			call WriteString
+			call WSAGetLastError@0
+			push ClientSocket
+			call closesocket@4
+			call WSACleanup@0
+			jmp end_it
+
+		.ENDIF
+	.UNTIL iResult <= 0
 
 	end_it:
 		exit
