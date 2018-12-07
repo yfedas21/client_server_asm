@@ -35,6 +35,7 @@ EXTRN	inet_ntop@16:PROC
 EXTRN	memset:PROC
 EXTRN	WriteString@0:PROC
 EXTRN	WriteInt@0:PROC
+EXTRN	getaddrinfo@16:PROC
 
 ; create a WSADATA struct, from WinSock2.h
 WSADATA STRUCT 
@@ -60,14 +61,14 @@ sockaddr STRUCT
 sockaddr ENDS
 
 addrinfo STRUCT
-	ai_flags		DWORD ?
-	ai_family		DWORD ?
-	ai_socktype		DWORD ?
-	ai_protocol		DWORD ?
-	size_t			DWORD ?
-	ai_canonname	DWORD ?
-	ai_addr			DWORD ?
-	ai_next			DWORD ?
+	ai_flags		DWORD 0
+	ai_family		DWORD 0
+	ai_socktype		DWORD 0
+	ai_protocol		DWORD 0
+	size_t			DWORD 0
+	ai_canonname	DWORD 0
+	ai_addr			DWORD 0
+	ai_next			DWORD 0
 addrinfo ENDS
 
 .data
@@ -75,7 +76,9 @@ addrinfo ENDS
 
 ; ------------------------------------ ws2def.h -----------------------------------------
 AF_INET					= 2		; internetwork: UDP, TCP, etc. - IPv4
-SOCK_STREAM				= 1		; stream socket (TCP)
+SOCK_STREAM				= 1		; stream socket 
+IPPROTO_TCP				= 6		; use TCP 
+AI_PASSIVE				= 1		; Socket addr will be used in bind() call
 INADDR_ANY				= 0h	; defined as ULONG, I'll use it as a DWORD
 NI_MAXHOST				= 1025	; max size of FQDN
 NI_MAXSERV				= 32	; max size of a service name
@@ -84,15 +87,17 @@ NI_MAXSERV				= 32	; max size of a service name
 INVALID_SOCKET			= -1	; the 2s comp of 0 (~0), because SOCKET is unsigned
 SOCKET_ERROR			= -1	; synonymous to INVALID_SOCKET in this context
 SOMAXCONN				= 7fffffffh		; maxinmum # of pending connections in queue
+NULL					= 0		; as defined in vcruntime.h
 
 ; --------------------------------- my constants ----------------------------------------
 BUF_SIZE				= 4096	; the size of the buffer client sends data into
 FAIL_WSAS				BYTE "Can't initialize winsock! Quitting... ",0
-FAIL_SOCK				BYTE "Can't create a socket! Quitting... ",0
+FAIL_RESO				BYTE "Can't resolve server address and port! Quitting... ",0
 FAIL_RECV				BYTE "Error in recv(). Quitting... ",0
 CONN_PORT				BYTE " connected on port ",0
 HOST_GONE				BYTE "Client disconnected... ",0
 VERSION					WORD 514d
+DEFAULT_PORT			BYTE "54",0
 
 ; --------------------------------- my variables ----------------------------------------
 wsData		WSADATA <>		; create a new wsData struct w/ default values
@@ -101,8 +106,9 @@ wsOk		DWORD ?			; 0 is winsock is initialized successfully
 listening	DWORD ?			; socket "handle" that identifies the created socket
 ipAddress	DWORD 7F000001h	; the ip address I will be using (loopback)
 servPort	WORD 0F0D2h		; port 54000 IN BIG ENDIAN!!!
-hints		addrinfo <>		; 
+hints		addrinfo <>		
 result		addrinfo <> 
+iResult		DWORD ?
 
 ; ***************************************************************************************
 
@@ -137,7 +143,7 @@ main PROC
 	push eax
 	movzx ecx, WORD PTR VERSION
 	push ecx
-	call WSAStartup@8 ; took out "DWORD PTR"
+	call WSAStartup@8 
 	mov DWORD PTR wsOk, eax
 	
 	; ------- Check if winsock was initialized successfully -------
@@ -147,38 +153,33 @@ main PROC
 		jmp end_it
 	.ENDIF
 
-	; ------- Create a listening socket -------
-	push 0
-	mov edx, SOCK_STREAM		; specify the TCP protocol
-	push edx
-	mov edx, AF_INET			; specify the IP family (v4)
-	push edx
-	call socket@12
-	mov listening, eax
+	; ------- Zeroed out memory at init -------
 
-	; ------- Check if socket() returned a valid socket -------
-	.IF listening == INVALID_SOCKET
-		mov edx, offset FAIL_SOCK
+	; ------- Set up hints structure -------
+	mov hints.ai_family, AF_INET
+	mov hints.ai_socktype, SOCK_STREAM
+	mov hints.ai_protocol, IPPROTO_TCP
+	mov hints.ai_flags, AI_PASSIVE
+
+	; ------- Resolve the server addr / port ------
+	lea edx, DWORD PTR result
+	push edx
+	lea edx, DWORD PTR hints
+	movzx edx, DEFAULT_PORT
+	push edx
+	mov edx, NULL		; make sure 4 bytes of 0
+	push edx
+	call getaddrinfo@16
+	mov iResult, eax
+
+	; ------- Check if addr / port resolved ------
+	.IF iResult != 0
+		mov edx, offset FAIL_RESO
 		call WriteString
-		call WSACleanup@0	; terminates use of ws2_32.dll on all threads
-		jmp end_it
+		call WSACleanup@0
 	.ENDIF
 
-	; ------- Create the address structure to bind -------
-	mov dx, AF_INET
-	mov hint.sin_family, dx
-	mov dx, servPort
-	mov hint.sin_port, dx
-	mov edx, INADDR_ANY
-	mov hint.sin_addr, edx
 
-	; ------- Bind the socket -------
-	push 16			; sizeof(hint)
-	lea eax, DWORD PTR hint
-	push eax
-	lea eax, DWORD PTR listening
-	push eax
-	call bind@12		; void function, nothing returned
 
 	end_it:
 		exit
