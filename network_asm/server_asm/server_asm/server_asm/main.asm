@@ -42,13 +42,13 @@ EXTRN	shutdown@8:PROC
 
 ; create a WSADATA struct, from WinSock2.h
 WSADATA STRUCT 
-	wVersion		WORD 514d 
-	wHighVersion	WORD 514d
+	wVersion		WORD ?
+	wHighVersion	WORD ?
 	szDescription	BYTE 257 DUP(?)
 	szSystemStatus	BYTE 129 DUP(?)
 	iMaxSockets		WORD 0
 	iMaxUdpDg		WORD 0
-	;lpVendorInfo	BYTE PTR ?
+	lpVendorInfo	DWORD ?
 WSADATA ENDS
 
 sockaddr_in STRUCT
@@ -93,7 +93,6 @@ SOMAXCONN				= 7fffffffh		; maxinmum # of pending connections in queue
 NULL					= 0		; as defined in vcruntime.h
 
 ; --------------------------------- my constants ----------------------------------------
-BUF_SIZE				= 4096	; the size of the buffer client sends data into
 FAIL_WSAS				BYTE "Can't initialize winsock! Quitting... ",0
 FAIL_RESO				BYTE "Can't resolve server address and port! Quitting... ",0
 FAIL_SOCK				BYTE "Can't create socket! ERROR: ",0
@@ -109,22 +108,19 @@ CONN_PORT				BYTE " connected on port ",0
 HOST_GONE				BYTE "Client disconnected... ",0
 FAIL_SHUT				BYTE "Shutdown failed with error: ",0
 VERSION					WORD 514d
-DEFAULT_PORT			BYTE "54000",0
+DEFAULT_PORT			BYTE "27015",0			; TCP port
 DEFAULT_BUFLEN			DWORD 512d
 SD_SEND					DWORD 1d
 
 ; --------------------------------- my variables ----------------------------------------
 wsData			WSADATA <>		; create a new wsData struct w/ default values
-wsOk			DWORD ?			; 0 is winsock is initialized successfully
 ListenSocket	DWORD -1		; listen on this socket
 ClientSocket	DWORD -1		; respond to clients on this socket (per client basis)
-ipAddress		DWORD 7F000001h	; the ip address I will be using (loopback)
-servPort		WORD 0F0D2h		; port 54000 IN BIG ENDIAN!!!
 hints			addrinfo <>		
-result			addrinfo <> 
-iResult			DWORD ?
-iSendResult		DWORD ?			; return value from send()
-recvbuf			BYTE 512 DUP(?)	; buffer client sends messages into
+result			DWORD 0
+iResult			SDWORD ?
+iSendResult		SDWORD ?			; return value from send()
+recvbuf			BYTE 512 DUP(0)	; buffer client sends messages into
 
 ; ***************************************************************************************
 
@@ -135,7 +131,7 @@ recvbuf			BYTE 512 DUP(?)	; buffer client sends messages into
 ;		1. Initialize winsock (call WSAStartup)											;
 ;		2. Create a socket (call socket)												;
 ;		3. Bind the ip address and port to a socket (call bind)							;
-;			a. Use localhost (127.0.0.1:5400)											;
+;			a. Use localhost (127.0.0.1:54000)											;
 ;		4. Tell winsock the socket is a listening socket (call listen)					;
 ;		5. Wait for a client connection (call accept)									;
 ;		6. After client connects, get client info										;
@@ -160,10 +156,10 @@ main PROC
 	movzx ecx, WORD PTR VERSION
 	push ecx
 	call WSAStartup@8 
-	mov DWORD PTR wsOk, eax
+	mov iResult, eax
 	
 	; ------- Check if winsock was initialized successfully -------
-	.IF wsOk != 0		
+	.IF iResult != 0		
 		mov edx, OFFSET FAIL_WSAS
 		call WriteString
 		jmp end_it
@@ -178,11 +174,12 @@ main PROC
 	mov hints.ai_flags, AI_PASSIVE
 
 	; ------- Resolve the server addr / port ------
-	lea edx, DWORD PTR result
-	push edx
-	lea edx, DWORD PTR hints
-	push edx
-	push OFFSET DEFAULT_PORT
+	lea eax, result
+	push eax
+	lea ecx, DWORD PTR hints
+	push ecx
+	mov ebx, OFFSET DEFAULT_PORT
+	push ebx
 	push 0
 	call getaddrinfo@16
 	mov iResult, eax
@@ -196,57 +193,67 @@ main PROC
 	.ENDIF
 
 	; ------- Create a listen socket for clients to connect to -------
-	mov eax, DWORD PTR result		; eax contains the location, 
-	mov edx, [eax+12]				; i.e. result->ai_family, etc
+	mov eax, result		; eax contains the location, 
+	mov ecx, [eax+12]				; i.e. result->ai_family, etc        <---- change back to mov ecx, [eax+12]
+	push ecx
+	mov ebx, result	
+	mov edx, [ebx+8]
 	push edx
-	mov edx, [eax+8]
-	push edx
-	mov edx, [eax+4]
-	push edx
+	mov ecx, result			; repeated because correct eax is crucial
+	mov eax, [ecx+4]
+	push eax
 	call socket@12
-	mov ListenSocket, eax		; holds the socket (an identifier)
+	mov DWORD PTR ListenSocket, eax		; holds the socket (an identifier)
 
 	; ------- Check if the listen socket is valid -------
 	.IF ListenSocket == INVALID_SOCKET
 		mov edx, OFFSET FAIL_SOCK
 		call WriteString
-		call WSAGetLastError@0
-		push DWORD PTR result		
-		call freeaddrinfo@4			; release reserved addr / port
-		call WSACleanup@0			; clean up instance
+		call DWORD PTR WSAGetLastError@0
+		mov eax, DWORD PTR result	
+		push eax
+		call DWORD PTR freeaddrinfo@4			; release reserved addr / port
+		call DWORD PTR WSACleanup@0			; clean up instance
 		jmp end_it
 	.ENDIF
 
 	; ------- Setup the TCP listening socket -------
-	mov eax, DWORD PTR result		; make sure eax is legit
-	mov edx, [eax+16]
+	mov eax, result		; make sure eax is legit
+	mov edx,  [eax+16]
 	push edx
-	mov edx, [eax+24]
+	mov eax, result		; make sure eax is legit
+	mov ecx,  [eax+24]
+	push ecx
+	mov edx, DWORD PTR ListenSocket
 	push edx
-	mov edx, ListenSocket
-	push edx
-	call bind@12
+	call  bind@12
 	mov iResult, eax
 
 	; ------- Check if socket bound correctly -------
 	.IF iResult == SOCKET_ERROR
 		mov edx, OFFSET FAIL_BIND
 		call WriteString
-		call WSAGetLastError@0
-		push DWORD PTR result		
-		call freeaddrinfo@4			
-		push ListenSocket
-		call closesocket@4			
+		call DWORD PTR WSAGetLastError@0
+		mov eax, DWORD PTR result
+		push eax
+		call DWORD PTR freeaddrinfo@4			
+		mov eax, DWORD PTR ListenSocket
+		push eax
+		call DWORD PTR closesocket@4
+		call DWORD PTR WSACleanup@0
 		jmp end_it
 	.ENDIF
 
 	; ------- Free dynamically-alloc addr info ------
-	push DWORD PTR result		
+	mov eax, DWORD PTR result		
+	push eax
 	call freeaddrinfo@4	
 
 	; ------- Specify socket for listening -------
-	push SOMAXCONN
-	push ListenSocket
+	mov ebx, SOMAXCONN ;2147483647    Or SOMAXCONN
+	push ebx
+	mov eax, DWORD PTR ListenSocket
+	push eax
 	call listen@8
 	mov iResult, eax
 
@@ -254,17 +261,19 @@ main PROC
 	.IF iResult == SOCKET_ERROR
 		mov edx, OFFSET FAIL_LIST
 		call WriteString
-		call WSAGetLastError@0
-		push ListenSocket
-		call closesocket@4
-		call WSACleanup@0		
+		call DWORD PTR WSAGetLastError@0
+		mov eax, DWORD PTR ListenSocket
+		push eax
+		call DWORD PTR closesocket@4
+		call DWORD PTR WSACleanup@0		
 		jmp end_it
 	.ENDIF
 
 	; ------- Accept a client socket -------
-	push NULL
-	push NULL
-	push ListenSocket
+	push 0
+	push 0
+	mov eax, DWORD PTR ListenSocket
+	push eax
 	call accept@12
 	mov ClientSocket, eax
 
@@ -272,25 +281,31 @@ main PROC
 	.IF ClientSocket == INVALID_SOCKET
 		mov edx, OFFSET FAIL_ACCP
 		call WriteString
-		call WSAGetLastError@0
-		push ListenSocket
-		call closesocket@4
-		call WSACleanup@0
+		call DWORD PTR WSAGetLastError@0
+		mov eax, DWORD PTR ListenSocket
+		push eax
+		call DWORD PTR closesocket@4
+		call DWORD PTR WSACleanup@0
 		jmp end_it
 	.ENDIF
 
 	; ------- Close listen socket (implies only one connection allowed) -------
-	push ListenSocket
-	call closesocket@4
+	mov eax, DWORD PTR ListenSocket
+	push eax
+	call DWORD PTR closesocket@4
 
 	; ------- Receive until client disconnects -------
 	.REPEAT
 		; ---- receive data from client ----
 		push 0
-		push DEFAULT_BUFLEN
-		push DWORD PTR recvbuf
-		push ClientSocket
-		call recv@16
+		mov eax, DWORD PTR DEFAULT_BUFLEN
+		push eax
+		lea ecx, DWORD PTR recvbuf
+		push ecx
+		mov edx, DWORD PTR ClientSocket
+		push edx
+		call DWORD PTR recv@16
+		mov iResult, eax
 
 		.IF iResult > 0
 			mov edx, OFFSET RECV_BYTE
@@ -301,25 +316,29 @@ main PROC
 
 			; -- Echo the buffer back to the sender --
 			push 0
-			push iResult
-			push DWORD PTR recvbuf
-			push ClientSocket
-			call send@16
-			mov iSendResult, eax
+			mov eax, DWORD PTR iResult
+			push eax
+			lea ecx, DWORD PTR recvbuf
+			push ecx
+			mov edx, DWORD PTR ClientSocket
+			push edx
+			call DWORD PTR send@16
+			mov DWORD PTR iSendResult, eax
 
 			.IF iSendResult == SOCKET_ERROR
 				mov edx, OFFSET FAIL_SEND
 				call WriteString
-				call WSAGetLastError@0
-				push ClientSocket
-				call closesocket@4
-				call WSACleanup@0
+				call DWORD PTR WSAGetLastError@0
+				mov eax, DWORD PTR ClientSocket
+				push eax
+				call DWORD PTR closesocket@4
+				call DWORD PTR WSACleanup@0
 				jmp end_it
 			.ENDIF
 
 			mov edx, OFFSET SENT_BYTE
 			call WriteString
-			mov eax, iSendResult
+			mov eax, DWORD PTR iSendResult
 			call WriteInt
 			call crlf
 
@@ -331,36 +350,41 @@ main PROC
 		.ELSE
 			mov edx, OFFSET FAIL_RECV
 			call WriteString
-			call WSAGetLastError@0
-			push ClientSocket
-			call closesocket@4
-			call WSACleanup@0
+			call DWORD PTR WSAGetLastError@0
+			mov eax, DWORD PTR ClientSocket
+			push eax
+			call DWORD PTR closesocket@4
+			call DWORD PTR WSACleanup@0
 			jmp end_it
 
 		.ENDIF
 	.UNTIL iResult <= 0
 
 	; ------- Shut down the connection -------
-	push SD_SEND
-	push ClientSocket
-	call shutdown@8
+	mov eax, SD_SEND
+	push eax
+	mov ebx, DWORD PTR ClientSocket
+	push ebx
+	call DWORD PTR shutdown@8
 	mov iResult, eax
 
 	; ------- Check if clean shutdown -------
 	.IF iResult == SOCKET_ERROR
 		mov edx, OFFSET FAIL_SHUT
 		call WriteString
-		call WSAGetLastError@0
-		push ClientSocket
-		call closesocket@4
-		call WSACleanup@0
+		call DWORD PTR WSAGetLastError@0
+		mov eax, DWORD PTR ClientSocket
+		push eax
+		call DWORD PTR closesocket@4
+		call DWORD PTR WSACleanup@0
 		jmp end_it
 	.ENDIF
 
 	; ------- Clean up -------
-	push ClientSocket
-	call closesocket@4
-	call WSACleanup@0
+	mov eax, DWORD PTR ClientSocket
+	push eax
+	call DWORD PTR closesocket@4
+	call DWORD PTR WSACleanup@0
 
 	end_it:
 		exit
