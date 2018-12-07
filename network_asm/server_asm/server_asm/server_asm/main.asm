@@ -36,6 +36,7 @@ EXTRN	memset:PROC
 EXTRN	WriteString@0:PROC
 EXTRN	WriteInt@0:PROC
 EXTRN	getaddrinfo@16:PROC
+EXTRN	freeaddrinfo@4:PROC
 
 ; create a WSADATA struct, from WinSock2.h
 WSADATA STRUCT 
@@ -93,6 +94,8 @@ NULL					= 0		; as defined in vcruntime.h
 BUF_SIZE				= 4096	; the size of the buffer client sends data into
 FAIL_WSAS				BYTE "Can't initialize winsock! Quitting... ",0
 FAIL_RESO				BYTE "Can't resolve server address and port! Quitting... ",0
+FAIL_SOCK				BYTE "Can't create socket! Quitting... ",0
+FAIL_BIND				BYTE "Can't bind the socket! Quitting... ",0
 FAIL_RECV				BYTE "Error in recv(). Quitting... ",0
 CONN_PORT				BYTE " connected on port ",0
 HOST_GONE				BYTE "Client disconnected... ",0
@@ -179,7 +182,7 @@ main PROC
 		jmp end_it
 	.ENDIF
 
-	; ------- Create a listen socket -------
+	; ------- Create a listen socket for clients to connect to -------
 	mov eax, DWORD PTR result		; eax contains the location, 
 	mov edx, [eax+12]				; i.e. result->ai_family, etc
 	push edx
@@ -189,6 +192,39 @@ main PROC
 	push edx
 	call socket@12
 	mov ListenSocket, eax		; holds the socket (an identifier)
+
+	; ------- Check if the listen socket is valid -------
+	.IF ListenSocket == INVALID_SOCKET
+		mov edx, OFFSET FAIL_SOCK
+		call WriteString
+		push DWORD PTR result		
+		call freeaddrinfo@4			; release reserved addr / port
+		call WSACleanup@0			; clean up instance
+		jmp end_it
+	.ENDIF
+
+	; ------- Setup the TCP listening socket -------
+	mov eax, DWORD PTR result		; make sure eax is legit
+	mov edx, [eax+16]
+	push edx
+	mov edx, [eax+24]
+	push edx
+	mov edx, ListenSocket
+	push edx
+	call bind@12
+	mov iResult, eax
+
+	; ------- Check if socket bound correctly -------
+	.IF iResult == SOCKET_ERROR
+		mov edx, OFFSET FAIL_BIND
+		call WriteString
+		push DWORD PTR result		
+		call freeaddrinfo@4			; release reserved addr / port
+		push ListenSocket
+		call closesocket@4			; close the Listen socket
+		call WSACleanup@0			; clean up instance
+		jmp end_it
+	.ENDIF
 
 	end_it:
 		exit
