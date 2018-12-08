@@ -6,7 +6,6 @@
 ; Sources:
 ; - MS documentation at 	
 ;	https://docs.microsoft.com/en-us/windows/desktop/winsock/about-clients-and-servers
-; - Sloan Kelly explanation: https://www.youtube.com/watch?v=WDn-htpBlnU
 ; - C++ disassembly
 ; ***************************************************************************************
 
@@ -17,23 +16,17 @@
 INCLUDE Irvine32.inc			; for output, Irvine functions
 
 INCLUDELIB WS2_32				; For WinAPI functions 
-INCLUDELIB UCRT					; For memset 
 
 EXTRN	accept@12:PROC
 EXTRN	bind@12:PROC
 EXTRN	closesocket@4:PROC
-EXTRN	htons@4:PROC
 EXTRN	listen@8:PROC
-EXTRN	ntohs@4:PROC
 EXTRN	recv@16:PROC
 EXTRN	send@16:PROC
 EXTRN	socket@12:PROC
 EXTRN	WSAStartup@8:PROC
 EXTRN	WSACleanup@0:PROC
 EXTRN	WSAGetLastError@0:PROC
-EXTRN	getnameinfo@28:PROC
-EXTRN	inet_ntop@16:PROC
-EXTRN	memset:PROC
 EXTRN	WriteString@0:PROC
 EXTRN	WriteInt@0:PROC
 EXTRN	getaddrinfo@16:PROC
