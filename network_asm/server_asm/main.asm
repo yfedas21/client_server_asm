@@ -192,7 +192,7 @@ main PROC
 
 	; ------- Create a listen socket for clients to connect to -------
 	mov eax, result		; eax contains the location, 
-	mov ecx, [eax+12]				; i.e. result->ai_family, etc        <---- change back to mov ecx, [eax+12]
+	mov ecx, [eax+12]				; i.e. result->ai_family, etc    
 	push ecx
 	mov ebx, result	
 	mov edx, [ebx+8]
