@@ -9,9 +9,9 @@
 ; - C++ disassembly
 ; ***************************************************************************************
 
-.686P
-.model flat			
-.stack 4096
+; .686P
+; .model flat				; Defined in SmallWin.inc in the project files ;
+; .stack 4096
 
 INCLUDE Irvine32.inc			; for output, Irvine functions
 
@@ -86,7 +86,7 @@ SOMAXCONN				= 7fffffffh		; maxinmum # of pending connections in queue
 NULL					= 0		; as defined in vcruntime.h
 
 ; --------------------------------- my constants ----------------------------------------
-WELCOME					BYTE "Welcome. Connect on localhost:27015. ",0
+WELCOME					BYTE "Welcome. Connect on localhost:36000. ",0
 FAIL_WSAS				BYTE "Can't initialize winsock! Quitting... ",0
 FAIL_RESO				BYTE "Can't resolve server address and port! Quitting... ",0
 FAIL_SOCK				BYTE "Can't create socket! ERROR: ",0
@@ -101,9 +101,10 @@ CONN_CLSE				BYTE "Connection closing... ",0
 CONN_PORT				BYTE " connected on port ",0
 HOST_GONE				BYTE "Client disconnected... ",0
 FAIL_SHUT				BYTE "Shutdown failed with error: ",0
+EXIT_MSG				BYTE "Thank you for using the server!",0
 VERSION					WORD 514d
-DEFAULT_PORT			BYTE "27015",0			; TCP port
-DEFAULT_BUFLEN			DWORD 512d
+DEFAULT_PORT			BYTE "36000",0			; TCP port
+DEFAULT_BUFLEN			DWORD 512d	
 SD_SEND					DWORD 1d
 
 ; --------------------------------- my variables ----------------------------------------
@@ -114,7 +115,7 @@ hints			addrinfo <>
 result			DWORD 0
 iResult			DWORD ?
 iSendResult		DWORD ?			; return value from send()
-recvbuf			BYTE 512 DUP(0)	; buffer client sends messages into
+recvbuf			BYTE "SERVER> ", 503 DUP(0)	; 512 bytes - 9 [SERVER> ]
 
 ; ***************************************************************************************
 
@@ -192,7 +193,7 @@ main PROC
 
 	; ------- Create a listen socket for clients to connect to -------
 	mov eax, result		; eax contains the location, 
-	mov ecx, [eax+12]				; i.e. result->ai_family, etc    
+	mov ecx, [eax+12]				; i.e. result->ai_family, etc
 	push ecx
 	mov ebx, result	
 	mov edx, [ebx+8]
@@ -201,7 +202,7 @@ main PROC
 	mov eax, [ecx+4]
 	push eax
 	call socket@12
-	mov DWORD PTR ListenSocket, eax		; holds the socket (an identifier)
+	mov DWORD PTR ListenSocket, eax		; holds the socket (essentially an id)
 
 	; ------- Check if the listen socket is valid -------
 	.IF ListenSocket == INVALID_SOCKET
@@ -298,24 +299,43 @@ main PROC
 		push 0
 		mov eax, DWORD PTR DEFAULT_BUFLEN
 		push eax
-		lea ecx, DWORD PTR recvbuf
+		lea ecx, DWORD PTR recvbuf+8		; where the buffer will be written to
 		push ecx
 		mov edx, DWORD PTR ClientSocket
 		push edx
 		call recv@16
-		mov iResult, eax
+		mov iResult, eax		; iResult contains 7 
+		add iResult, 6			; size of [SERVER> ] - size of crlf
+
+		; -- clear crlf -- 
+		mov eax, iResult				; eax contains 5 if hello entered
+		lea ebx, DWORD PTR recvbuf		; ebx contains &recvbuf
+		add DWORD PTR ebx, eax			; ebx contains &(recvbuf + iResult)
+		mov DWORD PTR [ebx], 0h			; clear crlf
+		mov DWORD PTR [ebx+1], 0h
+
+		call crlf
 
 		.IF iResult > 0
 			mov edx, OFFSET RECV_BYTE
 			call WriteString
+			sub iResult, 8
 			mov eax, iResult
 			call WriteInt
 			call crlf
 
 			; -- Echo the buffer back to the sender --
 			push 0
-			mov eax, DWORD PTR iResult
-			push eax
+
+			; - Add crlf at the end of buf -			; iResult = 5
+			add iResult, 10			; iResult + SRVR> + crlf = iResult		
+			mov eax, DWORD PTR iResult				
+			push eax		; pushing 15
+			sub eax, 2		; eax = 13, iResult = 15
+			lea ebx, recvbuf
+			add DWORD PTR ebx, eax		; &(recvbuf + 13)
+			mov DWORD PTR [ebx], 0dh		; cr
+			mov DWORD PTR [ebx+1], 0ah		; lf
 			lea ecx, DWORD PTR recvbuf
 			push ecx
 			mov edx, DWORD PTR ClientSocket
